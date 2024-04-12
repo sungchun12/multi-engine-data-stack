@@ -1,8 +1,0 @@
-# storage:
-#   postgres:
-#     postgres_db:
-#       username: postgres
-#       password: 
-#       hostname: 
-#       db_name: postgres
-#       port: 5432
