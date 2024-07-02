@@ -1,0 +1,51 @@
+service: benchdistributiondata
+useDotenv: true
+
+provider:
+  name: aws
+  region: 'eu-central-1'
+  architecture: arm64
+  memorySize: 3008
+  timeout: 600
+  ecr:
+    images:
+      lambda_ingestion:
+        path: ./lambda_ingestion
+        platform: linux/arm64
+
+
+functions:
+  lambda_ingestion:
+    url: true
+    # reservedConcurrency: 100
+    ephemeralStorageSize: 1000
+    image:
+      name: lambda_ingestion
+	
+    events:
+      - s3:
+          bucket: sumeo-parquet-data-lake
+          existing: true
+          event: s3:ObjectCreated:*
+          rules:
+            - prefix: raw/
+
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+          - s3:PutObject
+        Resource: '*'
+      - Effect: Allow
+        Action:
+          - s3:ListBucket
+        Resource: '*'
+      - Effect: Allow
+        Action:
+          - glue:*
+        Resource: '*'
+
+
+plugins:
+  - serverless-iam-roles-per-function
+  - serverless-better-credentials

@@ -1,0 +1,5 @@
+
+package*
+**/venv/**
+**/node_modules
+**/.serverless

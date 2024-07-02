@@ -1,0 +1,43 @@
+{
+    "generators": [
+        {
+            "bucket": "sumeo-parquet-data-lake",
+            "bucketConfigs": {
+                "format": "jsonl",
+                "keyPrefix": "raw/reviews/part-"
+            },
+            "data": {
+                "reviewid": { "_gen": "uuid" },
+                "username": {
+                    "_gen": "string", "expr": "#{Name.username}"
+                },
+                "review": {
+                    "_gen": "oneOf", 
+                    "choices":[
+                        {
+                            "expr": "#{Shakespeare.hamletQuote}"
+                        },
+                        {
+                            "expr": "#{Shakespeare.kingRichardIIIQuote}"
+                        },
+                        {
+                            "expr": "#{Shakespeare.romeoAndJulietQuote}"
+                        }
+                    ]
+                },
+                "ingestion_date": {
+                    "_gen": "now"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "s3": {
+            "kind": "s3",
+            "batchConfigs": {
+                "lingerMs": 10000,
+                "batchElements": 10000
+            }
+        }
+    }
+}
