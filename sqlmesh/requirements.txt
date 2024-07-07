@@ -1,5 +1,5 @@
 sqlmesh[web,github,bigquery,snowflake]==0.105.1
 pytest==8.1.1
-pyiceberg[glue]
+pyiceberg[glue] # TODO pin these versions
 snowflake-snowpark-python
 snowflake-ml-python
