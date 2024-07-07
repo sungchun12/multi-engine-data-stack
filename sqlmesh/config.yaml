@@ -13,7 +13,7 @@ gateways:
             role: {{ env_var('SNOWFLAKE_ROLE') }} # TODO: export your env
 
 model_defaults:
-    dialect: "@IF(@gateway = 'duckdb', 'duckdb', 'snowflake')"
+    dialect: duckdb
 
 default_gateway: duckdb
 
