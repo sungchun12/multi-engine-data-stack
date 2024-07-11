@@ -1,6 +1,7 @@
 MODEL (
     name reviews.raw_data_example,
-    kind VIEW
+    kind VIEW,
+    enabled @IF(@gateway='duckdb', True, False)
 );
 
 SELECT

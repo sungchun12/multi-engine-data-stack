@@ -6,8 +6,10 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.cortex import Sentiment, Complete
 from snowflake.snowpark.functions import col, concat, lit, current_timestamp, parse_json
 from sqlmesh.core.model.kind import ModelKindName
+from sqlmesh.core.macros import MacroEvaluator
 from sqlmesh import ExecutionContext, model
 from pyiceberg.catalog import load_catalog
+from macros.custom_macros import snowflake_only
 
 @model(
     "reviews.prediction",
@@ -23,7 +25,7 @@ from pyiceberg.catalog import load_catalog
         "ingestion_timestamp": "timestamp",
         # "prediction_timestamp": "timestamp"
     },
-    enabled= False, # TODO: fix this
+    enabled=snowflake_only(evaluator=MacroEvaluator),
     depends_on=["reviews.staging_reviews"]
 )
 def execute(

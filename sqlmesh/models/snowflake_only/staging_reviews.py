@@ -2,7 +2,9 @@ import typing as t
 from datetime import datetime
 
 from sqlmesh import ExecutionContext, model
+from sqlmesh.core.macros import MacroEvaluator
 from pyiceberg.catalog import load_catalog
+from macros.custom_macros import snowflake_only
 
 @model(
     "reviews.staging_reviews",
@@ -13,7 +15,7 @@ from pyiceberg.catalog import load_catalog
         "review": "string",
         "ingestion_timestamp": "timestamp",
     },
-    enabled=False #"@IF(@gateway='duckdb', False, True)"
+    enabled=snowflake_only(evaluator=MacroEvaluator)
 )
 def execute(
     context: ExecutionContext,
