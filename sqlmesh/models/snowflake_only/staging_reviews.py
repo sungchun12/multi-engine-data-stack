@@ -2,20 +2,25 @@ import typing as t
 from datetime import datetime
 
 from sqlmesh import ExecutionContext, model
-from sqlmesh.core.macros import MacroEvaluator
 from pyiceberg.catalog import load_catalog
-from macros.custom_macros import snowflake_only
+from sqlmesh.core.macros import MacroEvaluator
+from macros.custom_macros import duckdb_only
+import os 
+
 
 @model(
     "reviews.staging_reviews",
     kind="FULL",
+    cron="*/5 * * * *",
     columns={
         "reviewid": "string",
         "username": "string",
         "review": "string",
         "ingestion_timestamp": "timestamp",
+        "source_s3_key":"string"
     },
-    enabled=snowflake_only(evaluator=MacroEvaluator)
+    start='2024-07-01',
+    enabled=duckdb_only(evaluator=MacroEvaluator)
 )
 def execute(
     context: ExecutionContext,
@@ -26,9 +31,11 @@ def execute(
 ) -> None:
     print(start, end)
 
+    # aws glue catalog for iceberg is read only
     catalog = load_catalog("glue", **{"type": "glue",
-                                    "region_name":"eu-central-1",
                                     "s3.region":"eu-central-1",
+                                    "s3.access-key-id": os.environ.get("AWS_ACCESS_KEY_ID"),
+                                    "s3.secret-access-key":  os.environ.get("AWS_SECRET_ACCESS_KEY")
                             })
 
     # load landing data in duckdb
@@ -40,13 +47,14 @@ def execute(
         reviewid,
         username,
         review,
-        epoch_ms(ingestion_date) as ingestion_timestamp              
+        epoch_ms(ingestion_date) as ingestion_timestamp,
+        source_s3_key              
     FROM landing_reviews
     QUALIFY
         row_number() OVER (PARTITION BY username, review order by ingestion_timestamp) =1;
     """).arrow()
     
-    # create Iceberg if not exists
+    # create Iceberg table if not exists
     tables = catalog.list_tables("multiengine")
     if ("multiengine", "staging_reviews") not in tables:
         catalog.create_table(

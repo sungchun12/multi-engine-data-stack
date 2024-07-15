@@ -11,11 +11,14 @@ gateways:
             password: {{ env_var('SNOWFLAKE_PASSWORD') }} # TODO: export your env_var
             database: {{ env_var('SNOWFLAKE_DATABASE') }} # TODO: export your env
             role: {{ env_var('SNOWFLAKE_ROLE') }} # TODO: export your env
-
+            warehouse: {{ env_var('SNOWFLAKE_WAREHOUSE') }} # TODO: export your env
+        state_connection:
+            type: duckdb
+            database: snowflake_state.db
 model_defaults:
-    dialect: duckdb
+    dialect: snowflake # TODO: make this dynamic by gateway
 
-default_gateway: duckdb
+default_gateway: snowflake 
 
 plan:
   enable_preview: true

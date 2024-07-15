@@ -6,10 +6,11 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.cortex import Sentiment, Complete
 from snowflake.snowpark.functions import col, concat, lit, current_timestamp, parse_json
 from sqlmesh.core.model.kind import ModelKindName
-from sqlmesh.core.macros import MacroEvaluator
 from sqlmesh import ExecutionContext, model
 from pyiceberg.catalog import load_catalog
-from macros.custom_macros import snowflake_only
+from sqlmesh.core.macros import MacroEvaluator
+from macros.custom_macros import snow_only 
+import os 
 
 @model(
     "reviews.prediction",
@@ -17,16 +18,16 @@ from macros.custom_macros import snowflake_only
         name=ModelKindName.INCREMENTAL_BY_TIME_RANGE,
         time_column="ingestion_timestamp"
     ),
-    # cron="@hourly",
+    cron="*/5 * * * *",
     columns={
         "reviewid": "string",
         "sentiment": "float",
-        "classification": "variant",
-        "ingestion_timestamp": "timestamp",
-        # "prediction_timestamp": "timestamp"
+        "classification": "string",
+        "ingestion_timestamp": "timestamp"
     },
-    enabled=snowflake_only(evaluator=MacroEvaluator),
-    depends_on=["reviews.staging_reviews"]
+    start='2024-07-01',
+    depends_on=["reviews.staging_reviews"],
+    # enabled=snow_only(evaluator=MacroEvaluator)
 )
 def execute(
     context: ExecutionContext,
@@ -38,7 +39,10 @@ def execute(
     
     print(start, end)
 
-    df = context.snowpark.table("REVIEWS.STAGING_REVIEWS").limit(2)
+    context.snowpark.sql("ALTER ICEBERG TABLE REVIEWS.STAGING_REVIEWS REFRESH")
+
+
+    df = context.snowpark.table("MULTIENGINE_DB.REVIEWS.STAGING_REVIEWS")
     
     df = df.filter(f"(ingestion_timestamp >= '{start}') and (ingestion_timestamp <= '{end}')").select("reviewid", "review", "ingestion_timestamp")
     
@@ -49,44 +53,51 @@ def execute(
 
     df = df.withColumn(
         "classification",
-        parse_json(Complete(
+        Complete(
             "llama3-8b",
             concat(
                lit("Extract author, book and character of the following <quote>"),
                col("review"),
-               lit("</quote>. Return only a json with the following format {author: <author>, book: <book>, character: <character>}. Return only JSON, no verbose text.")
+               lit("""</quote>. Return only a json with the following format {author: <author>, 
+                   book: <book>, character: <character>}. Return only JSON, no verbose text.""")
             )
-        ))
+        )
     )
+
     # df = df.withColumn("prediction_timestamp", current_timestamp())
 
     df = df.select(
         "reviewid", 
         "sentiment",
-        "classification", 
-        "ingestion_timestamp",
-        # "prediction_timestamp"
+        "classification",
+        "ingestion_timestamp" 
     )
 
-    output= pa.Table.from_pandas(df.to_pandas()) 
-    
+    schema = pa.schema(
+                [
+                    pa.field("REVIEWID", pa.string(), nullable=False),
+                    pa.field("SENTIMENT", pa.float64(), nullable=True),
+                    pa.field("CLASSIFICATION", pa.string(), nullable=True),
+                    pa.field("INGESTION_TIMESTAMP", pa.timestamp('us'), nullable=False)
+                ]
+            )
+
     catalog = load_catalog("glue", **{"type": "glue",
-                                "region_name":"eu-central-1",
-                                "s3.region":"eu-central-1",
-                        })
+                                    "s3.region":"eu-central-1",
+                                    "s3.access-key-id": os.environ.get("AWS_ACCESS_KEY_ID"),
+                                    "s3.secret-access-key":  os.environ.get("AWS_SECRET_ACCESS_KEY")
+                            })
     
     # create Iceberg if not exists
     tables = catalog.list_tables("multiengine")
     if ("multiengine", "predictions") not in tables:
         catalog.create_table(
             "multiengine.predictions",
-            output.schema,
+            schema,
             location="s3://sumeo-parquet-data-lake/staging/predictions")
 
     # append partition to Iceberg table
-    catalog.load_table("multiengine.predictions").append(output)
-
-
+    catalog.load_table("multiengine.predictions").append(pa.Table.from_pandas(df.to_pandas(), schema=schema))
 
     context.snowpark.sql("ALTER ICEBERG TABLE REVIEWS.PREDICTION REFRESH")
 

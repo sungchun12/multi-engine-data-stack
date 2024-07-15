@@ -6,7 +6,8 @@ MODEL (
     start '2020-01-01',
     cron '@daily',
     grain (id, event_date),
-    allow_partials true
+    allow_partials true,
+    enabled @IF(@gateway='duckdb', True, False)
 );
 
 SELECT
