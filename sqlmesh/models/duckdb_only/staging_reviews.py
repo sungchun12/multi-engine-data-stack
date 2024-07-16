@@ -2,8 +2,9 @@ import typing as t
 from datetime import datetime
 
 from sqlmesh import ExecutionContext, model
+from sqlglot.expressions import to_column
 from pyiceberg.catalog import load_catalog
-import os 
+import os
 
 
 @model(
@@ -15,10 +16,14 @@ import os
         "username": "string",
         "review": "string",
         "ingestion_timestamp": "timestamp",
-        "source_s3_key":"string"
+        "source_s3_key": "string",
     },
-    start='2024-07-01',
-    enabled=os.environ.get("DUCKDB_ENABLED")
+    audits=[
+        ("unique_values", {"columns": [to_column("reviewid")]}),
+        ("not_null", {"columns": [to_column("reviewid")]}),
+    ],
+    start="2024-07-01",
+    enabled=os.environ.get("DUCKDB_ENABLED"),
 )
 def execute(
     context: ExecutionContext,
@@ -30,16 +35,24 @@ def execute(
     print(start, end)
 
     # aws glue catalog for iceberg is read only
-    catalog = load_catalog("glue", **{"type": "glue",
-                                    "s3.region":"eu-central-1",
-                                    "s3.access-key-id": os.environ.get("AWS_ACCESS_KEY_ID"),
-                                    "s3.secret-access-key":  os.environ.get("AWS_SECRET_ACCESS_KEY")
-                            })
+    catalog = load_catalog(
+        "glue",
+        **{
+            "type": "glue",
+            "s3.region": "eu-central-1",
+            "s3.access-key-id": os.environ.get("AWS_ACCESS_KEY_ID"),
+            "s3.secret-access-key": os.environ.get("AWS_SECRET_ACCESS_KEY"),
+        },
+    )
 
     # load landing data in duckdb
-    con = catalog.load_table("multiengine.landing_reviews").scan().to_duckdb(table_name="landing_reviews")
+    con = (
+        catalog.load_table("multiengine.landing_reviews")
+        .scan()
+        .to_duckdb(table_name="landing_reviews")
+    )
 
-    # compute ouput
+    # compute output
     output = con.execute("""
     SELECT 
         reviewid,
@@ -51,15 +64,16 @@ def execute(
     QUALIFY
         row_number() OVER (PARTITION BY username, review order by ingestion_timestamp) =1;
     """).arrow()
-    
+
     # create Iceberg table if not exists
     tables = catalog.list_tables("multiengine")
     if ("multiengine", "staging_reviews") not in tables:
         catalog.create_table(
             "multiengine.staging_reviews",
             output.schema,
-            location="s3://sumeo-parquet-data-lake/staging/reviews")
-    
+            location="s3://sumeo-parquet-data-lake/staging/reviews",
+        )
+
     # overwrite target Iceberg table
     catalog.load_table("multiengine.staging_reviews").overwrite(output)
 
