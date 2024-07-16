@@ -3,8 +3,6 @@ from datetime import datetime
 
 from sqlmesh import ExecutionContext, model
 from pyiceberg.catalog import load_catalog
-from sqlmesh.core.macros import MacroEvaluator
-from macros.custom_macros import duckdb_only
 import os 
 
 
@@ -20,7 +18,7 @@ import os
         "source_s3_key":"string"
     },
     start='2024-07-01',
-    enabled=duckdb_only(evaluator=MacroEvaluator)
+    enabled=os.environ.get("DUCKDB_ENABLED")
 )
 def execute(
     context: ExecutionContext,

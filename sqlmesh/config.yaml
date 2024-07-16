@@ -16,9 +16,9 @@ gateways:
             type: duckdb
             database: snowflake_state.db
 model_defaults:
-    dialect: snowflake # TODO: make this dynamic by gateway
+    dialect: {{ env_var('DEFAULT_DIALECT') }}
 
-default_gateway: snowflake 
+default_gateway: {{ env_var('DEFAULT_GATEWAY') }}  
 
 plan:
   enable_preview: true
